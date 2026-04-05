@@ -16,7 +16,7 @@ from gymnasium import spaces
 import numpy as np
 from typing import Optional, List, Dict
 
-MAX_DAYS        = 90
+MAX_DAYS        = 120
 IMPROVEMENT_THR = 0.35
 WORSENING_THR   = 0.90
 
@@ -70,7 +70,12 @@ class SkinConditionEnv(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        self._episode_variant = (self._episode_variant + 1) % 3
+        # FIX 1: re-seed self._rng so reset(seed=N) gives reproducible episodes
+        if seed is not None:
+            self._rng = np.random.default_rng(seed)
+        # FIX 2: derive variant from rng so it is reproducible per seed,
+        # not tied to a global counter that drifts across eval/train envs
+        self._episode_variant = int(self._rng.integers(0, 3))
         self._day = 0
         self._history = []
         if self._episode_variant == 0:
@@ -83,7 +88,8 @@ class SkinConditionEnv(gym.Env):
         return self._get_obs(), self._get_info()
 
     def step(self, action: int):
-        assert self.action_space.contains(action)
+        if not self.action_space.contains(action):
+            raise ValueError(f"Action {action} is not valid. Expected int in [0, {self.action_space.n - 1}].")
         self._day += 1
         delta = ACTION_EFFECTS[action].copy()
         noise = self._rng.normal(0, ACTION_NOISE[action], size=6)

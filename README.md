@@ -1,104 +1,164 @@
-# DermRL 🧬 — Skin Condition Reinforcement Learning Environment
+# DermRL — Reinforcement Learning for Skin Condition Management
 
-> An AI-driven skin condition simulation built as a Gymnasium environment,
-> supporting DQN and PPO training for dermatological treatment planning.
-
----
-
-## Project Vision
-
-Millions of Rwandans — especially adolescents — lack access to dermatological care.
-With only ~13 dermatologists serving nearly 14 million people, DermRL explores how
-reinforcement learning can model, simulate, and optimise treatment pathways for
-common skin conditions, forming the research backbone of a future AI-powered mobile
-dermatology app.
+**Student:** Denyse Mutoni Uwingeneye  
+**Institution:** African Leadership University (ALU)  
+**Assignment:** RL Summative — Comparing Value-Based and Policy Gradient Methods
 
 ---
 
-## Folder Structure
+## Problem Statement
+
+Rwanda has only **13–14 dermatologists** serving nearly **14 million people**, leaving most patients — especially adolescents — with no access to dermatological care. This project trains RL agents to recommend daily lifestyle and treatment actions that clear skin conditions over a 90-day episode, forming the AI backbone of a mobile health app for Rwandan communities.
+
+---
+
+## Project Structure
 
 ```
-skin_rl_project/
+project_root/
 ├── environment/
-│   ├── custom_env.py        # Custom Gymnasium environment (SkinConditionEnv)
-│   └── rendering.py         # OpenGL + Pygame visualisation dashboard
+│   ├── custom_env.py       # SkinConditionEnv — custom Gymnasium environment
+│   └── rendering.py        # Pygame visualization
 ├── training/
-│   ├── dqn_training.ipynb   # DQN training notebook (Google Colab)
-│   └── pg_training.ipynb    # PPO training notebook (Google Colab)
+│   ├── dqn_training.ipynb  # DQN — 10 hyperparameter experiments
+│   ├── PPO_training.ipynb  # PPO — 10 hyperparameter experiments
+│   └── reinforce_training.ipynb  # REINFORCE — 10 hyperparameter experiments
 ├── models/
-│   ├── dqn/                 # Saved DQN models
-│   └── pg/                  # Saved PPO models
-├── main.py                  # Demo: random / trained agent with live visualisation
-├── requirements.txt         # Project dependencies (MANDATORY)
+│   ├── dqn/
+│   │   └── best_model.zip  # Best DQN model (Large Buffer, +22.55 reward)
+│   ├── ppo/
+│   │   └── best_model.zip  # Best PPO model (Baseline, +21.81 reward)
+│   └── reinforce/
+│       └── best_model.pt   # Best REINFORCE model (Batch=8, +21.90 reward)
+├── main.py                 # Run best agent with live visualization
+├── requirements.txt        # Python dependencies
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## Environment — SkinConditionEnv
 
-### 1. Install dependencies
+A custom Gymnasium environment simulating a **90-day skin condition treatment episode**.
+
+| Component            | Details                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Observation space    | `Box(7,)` — severity, inflammation, hydration, sun damage, stress, diet quality, day (normalised) |
+| Action space         | `Discrete(8)` — Do Nothing, Exercise, Vitamins, Diet, Skincare, Pills, Topical, SPF               |
+| Episode length       | 90 days (steps)                                                                                   |
+| Start state          | Random patient — mild (sev 0.30–0.50), moderate (0.50–0.70), or severe (0.70–0.90)                |
+| Terminal — recovery  | Composite severity < 0.35 → +20 reward bonus                                                      |
+| Terminal — worsening | Composite severity ≥ 0.90 → −15 reward penalty                                                    |
+| Truncation           | Day 90 reached → partial credit reward                                                            |
+
+**Reward function:**
+
+```
+reward = (prev_severity - severity) × 10  - 0.1       # improvement + step cost
+       + (hydration - 0.5) × 0.5                       # hydration bonus
+       + (diet_quality - 0.5) × 0.5                    # diet bonus
+       - stress × 0.3                                   # stress penalty
+```
+
+---
+
+## Algorithms
+
+| Algorithm | Type            | Library            | Best Reward   | Success Rate |
+| --------- | --------------- | ------------------ | ------------- | ------------ |
+| DQN       | Value-based     | Stable Baselines 3 | +22.55 ± 5.24 | 84%          |
+| REINFORCE | Policy gradient | Custom PyTorch     | +21.90 ± 1.06 | 86.7%        |
+| PPO       | Policy gradient | Stable Baselines 3 | +21.81 ± 0.86 | —            |
+
+Each algorithm was trained with **10 different hyperparameter configurations**. See the training notebooks for full tables and analysis.
+
+---
+
+## Installation
+
 ```bash
+git clone https://github.com/dmutoni/skin_rl_project-6.git
+cd skin_rl_project-6
 pip install -r requirements.txt
 ```
 
-### 2. Run the demo (random agent + OpenGL window)
-```bash
-python main.py
-python main.py --episodes 5          # run 5 episodes
-python main.py --model dqn           # use trained DQN
-python main.py --no-render           # headless / no window
+**requirements.txt:**
+
+```
+gymnasium==0.29.1
+stable-baselines3==2.3.2
+torch>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+pygame>=2.5.0
 ```
 
-### 3. Train in Google Colab
-- Open `training/dqn_training.ipynb` in Colab → Runtime → T4 GPU
-- Open `training/pg_training.ipynb` for PPO training
-- Download `best_model.zip` and place in `models/dqn/` or `models/pg/`
+---
+
+## Running the Best Agent
+
+```bash
+# Run best DQN agent — 3 episodes with pygame GUI (default)
+python main.py
+
+# Run 1 episode slowly (good for demos and video recording)
+python main.py --episodes 1 --slow
+
+# Run PPO instead
+python main.py --algo ppo --episodes 3
+
+# Run REINFORCE
+python main.py --algo reinforce --episodes 3
+
+# Terminal output only, no GUI
+python main.py --no-render --episodes 5
+```
+
+**Example terminal output:**
+
+```
+==============================================================
+  DermRL - Skin Condition Management via RL
+  Algorithm : DQN
+  Episodes  : 3
+==============================================================
+
+  Day   1 | Prescribed Pills             | Reward:  +1.23 | Severity: 0.681
+  Day   2 | Topical Treatment            | Reward:  +0.94 | Severity: 0.612
+  Day   3 | Improve Diet                 | Reward:  +0.61 | Severity: 0.574
+  ...
+  Episode 1 complete:
+    Outcome      : RECOVERED
+    Total reward : +23.41
+    Steps taken  : 18 / 90 days
+```
 
 ---
 
-## Environment Details
+## Training Notebooks
 
-| Property | Value |
-|---|---|
-| Observation space | `Box(7,)` — severity, inflammation, hydration, sun_damage, stress, diet_quality, days_norm |
-| Action space | `Discrete(8)` — 8 dermatologist-recommended actions |
-| Episode length | 30 days (steps) |
-| Success condition | Composite severity < 35% |
-| Condition variants | Mild / Moderate / Severe (cycles across episodes) |
+Open any notebook in Google Colab and run all cells top to bottom. Each notebook:
 
-### Actions
-| ID | Action | Effect |
-|---|---|---|
-| 0 | 💤 Do Nothing | Condition slowly worsens |
-| 1 | 🏃 Exercise / Sports | Reduces stress, boosts circulation |
-| 2 | 💊 Vitamin Supplements | Improves hydration & skin quality |
-| 3 | 🥗 Improve Diet | Strongest diet quality boost |
-| 4 | 🧴 Change Skincare Routine | Improves hydration, reduces inflammation |
-| 5 | 💉 Prescribed Pills | Strongest severity reduction |
-| 6 | 🧪 Topical Treatment | Moderate severity + inflammation reduction |
-| 7 | 🕶️ Reduce Sun / Apply SPF | Reduces sun damage |
+- Writes `SkinConditionEnv` to `environment/custom_env.py`
+- Trains 10 experiments with varied hyperparameters
+- Saves all models to `models/`
+- Produces reward curves, convergence plots, and generalization tests
 
 ---
 
-## Visualisation
+## Key Results
 
-The OpenGL dashboard (`rendering.py`) renders in real-time:
-- **Procedural face model** — severity, inflammation, and hydration animate on the face
-- **Severity timeline** — sparkline chart over 30 days
-- **Health radar** — 6-axis radar chart for all metrics
-- **Metric bars** — per-metric vertical progress bars
-- **Action log** — scrolling history of decisions + reward deltas
+- **DQN** achieves the highest peak reward (+22.55) with the Large Buffer (200k) configuration. Experience replay diversity is the critical factor for the 90-step episodes.
+- **REINFORCE** reaches the highest success rate (86.7%) when batching 8 episodes per gradient update, which reduces Monte Carlo variance.
+- **PPO** is the most stable — all 10 configurations converged within a narrow band (21.55–21.81), making it the safest choice for production deployment.
 
 ---
 
-## Tech Stack
-- **Gymnasium** — RL environment API
-- **Stable-Baselines3** — DQN + PPO implementations
-- **PyTorch** — neural network backend
-- **Pygame + PyOpenGL** — real-time OpenGL visualisation
-- **Google Colab** — GPU-accelerated training
+## Video Demo
 
----
+## https://vimeo.com/1180329785/ea730b21e0
 
-*Built for ALU coursework — AI for Dermatological Access in Rwanda*
+## License
+
+MIT
